@@ -1,15 +1,36 @@
 /* ==========================================================
    server.js – Hex-Board lobby + map-vote + faction picker
-   (now with deterministic map seed)
+   (now with deterministic map seed & CORS support)
    ---------------------------------------------------------- */
 const express = require('express');
 const http    = require('http');
+const cors    = require('cors');           // ← NEW
 const { Server } = require('socket.io');
-const crypto  = require('crypto');            // <— Node module for randomness
+const crypto  = require('crypto');
 
 const app  = express();
 const srv  = http.createServer(app);
-const io   = new Server(srv);
+
+/* ----------------------------------------------------------
+   CORS  (allow frontend at hexagamehub.com to talk to us)
+---------------------------------------------------------- */
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://hexagamehub.com';
+
+app.use(
+  cors({
+    origin: ALLOWED_ORIGIN,            // set '*' while testing if you like
+    methods: ['GET', 'POST'],
+    credentials: false
+  })
+);
+
+const io = new Server(srv, {
+  cors: {
+    origin: ALLOWED_ORIGIN,
+    methods: ['GET', 'POST']
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 
 /* ----------------------------------------------------------
@@ -19,16 +40,18 @@ app.use(express.static(__dirname + '/public'));
 
 /* ----------------------------------------------------------
    In-memory room tracking (not persisted)
-   room = {
-     desiredPlayers,
-     mapVotes:{id:mapType},
-     mapType,                 // chosen map
-     seed,                    // <— NEW
-     players:[{nick,socket,factionId}],
-     pickIdx,
-     availableFactions:[1..8]
-   }
 ---------------------------------------------------------- */
+/*
+room = {
+  desiredPlayers,
+  mapVotes:{id:mapType},
+  mapType,
+  seed,
+  players:[{nick,socket,factionId}],
+  pickIdx,
+  availableFactions:[1..8]
+}
+*/
 const rooms = {};
 
 /* helpers ------------------------------------------------- */
